@@ -2,20 +2,25 @@ const UserReport = () => {
   var EventSource = require("eventsource");
   var url = "https://stream.wikimedia.org/v2/stream/revision-create";
 
-  console.log(`Connecting to EventStreams at ${url}`);
   var eventSource = new EventSource(url);
-
-  eventSource.onopen = function (event) {
-    console.log("--- Opened connection.");
-  };
 
   eventSource.onerror = function (event) {
     console.error("--- Encountered error", event);
   };
 
-  const user = new Map();
+  const minutesMap = {};
+  let currLogMinute = null;
   eventSource.onmessage = function (event) {
     event = JSON.parse(event.data);
+    minute = new Date().getMinutes();
+    minute = minute ? minute : 60;
+    if (!currLogMinute) {
+      currLogMinute = minute;
+    }
+    if (!minutesMap[minute]) {
+      minutesMap[minute] = new Map();
+    }
+    user = minutesMap[minute];
     if (
       event.meta.domain == "en.wikipedia.org" &&
       !event.performer.user_is_bot
@@ -33,24 +38,26 @@ const UserReport = () => {
     }
   };
 
-  const generateReport = () => {
+  const generateOneMinReport = () => {
+    user = minutesMap[currLogMinute];
     const mapSort1 = new Map([...user.entries()].sort((a, b) => b[1] - a[1]));
     user.clear();
-    console.log(
-      "\x1b[36m%s\x1b[0m",
-      "Users who made changes to en.wikipedia.org"
-    );
+    console.log("Users who made changes to en.wikipedia.org");
     mapSort1.forEach((k, v) => {
-      console.log("\x1b[32m", `${v} : ${k}`);
+      console.log(`${v} : ${k}`);
     });
+    delete minutesMap[currLogMinute];
+    currLogMinute += 1;
+    if (currLogMinute == 60) {
+      currLogMinute = 1;
+    }
   };
 
   setInterval(() => {
     console.log(
-      "\x1b[33m",
       "\n ============================ One Min User Report ============================ \n"
     );
-    generateReport();
+    generateOneMinReport();
   }, 60000);
 };
 
